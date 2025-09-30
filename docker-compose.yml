@@ -21,9 +21,6 @@ services:
     container_name: emoji_chat_app
     ports:
       - "3000:3000"
-    volumes:
-      - .:/app
-      - /app/node_modules
     environment:
       DATABASE_URL: "postgresql://emoji_chat:emoji_chat@emoji_chat:5432/emoji_chat"
     command: sh -c "npx prisma migrate deploy && npm run db:seed && npm run dev"
