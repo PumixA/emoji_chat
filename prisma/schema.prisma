@@ -17,7 +17,8 @@ model User {
 
 model Room {
   id        String    @id @default(cuid())
-  name      String
+  name      String    @unique
+  emoji     String
   messages  Message[]
   createdAt DateTime  @default(now())
 }

@@ -15,6 +15,21 @@ services:
       interval: 5s
       timeout: 3s
       retries: 20
+      
+  emoji_chat_app:
+    build: . 
+    container_name: emoji_chat_app
+    ports:
+      - "3000:3000"
+    volumes:
+      - .:/app
+      - /app/node_modules
+    environment:
+      DATABASE_URL: "postgresql://emoji_chat:emoji_chat@emoji_chat:5432/emoji_chat"
+    command: sh -c "npx prisma migrate deploy && npm run db:seed && npm run dev"
+    depends_on:
+      emoji_chat:
+        condition: service_healthy
 
 volumes:
   emoji_chat_data:

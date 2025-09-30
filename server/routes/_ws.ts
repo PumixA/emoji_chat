@@ -15,8 +15,24 @@ function joinRoom(peer: Peer, room: string) {
 
   // ajouter à la nouvelle room
   if (!rooms.has(room)) rooms.set(room, new Set())
-  rooms.get(room)!.add(peer)
+  
+  const roomClients = rooms.get(room)!
+  
+  // Vérifier la limite de 2 connexions
+  if (roomClients.size >= 2) {
+    // Envoyer une erreur au client
+    peer.send(JSON.stringify({
+      type: 'error',
+      message: 'Room pleine (maximum 2 personnes)',
+      room,
+      timestamp: new Date().toISOString()
+    }))
+    return false
+  }
+  
+  roomClients.add(peer)
   peerRoom.set(peer, room)
+  return true
 }
 
 function broadcastToRoom(room: string, payload: any) {
@@ -44,22 +60,25 @@ export default defineWebSocketHandler({
         const room = data.room.trim()
         if (!room) return
 
-        joinRoom(peer, room)
+        const success = joinRoom(peer, room)
+        
+        if (success) {
+          // message système à la room
+          broadcastToRoom(room, {
+            type: 'system',
+            content: `${data.username} a rejoint #${room}`,
+            room,
+            timestamp: new Date().toISOString()
+          })
 
-        // message système à la room
-        broadcastToRoom(room, {
-          type: 'system',
-          content: `${data.username} a rejoint #${room}`,
-          room,
-          timestamp: new Date().toISOString()
-        })
-
-        // ack au peer
-        peer.send(JSON.stringify({
-          type: 'joined',
-          room,
-          timestamp: new Date().toISOString()
-        }))
+          // ack au peer
+          peer.send(JSON.stringify({
+            type: 'joined',
+            room,
+            timestamp: new Date().toISOString()
+          }))
+        }
+        // Si échec, l'erreur est déjà envoyée par joinRoom()
         return
       }
 
