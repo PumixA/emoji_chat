@@ -1,0 +1,20 @@
+services:
+  emoji_chat:
+    image: postgres:16-alpine
+    container_name: emoji_chat
+    environment:
+      POSTGRES_DB: emoji_chat
+      POSTGRES_USER: emoji_chat
+      POSTGRES_PASSWORD: emoji_chat
+    volumes:
+      - emoji_chat_data:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  emoji_chat_data:

@@ -12,6 +12,7 @@
   "dependencies": {
     "@nuxt/content": "^3.6.3",
     "@nuxt/eslint": "^1.9.0",
+    "@prisma/client": "^6.16.2",
     "better-sqlite3": "^12.2.0",
     "eslint": "^9.34.0",
     "nuxt": "^4.0.3",
@@ -19,6 +20,7 @@
     "vue-router": "^4.5.1"
   },
   "devDependencies": {
-    "@types/ws": "^8.18.1"
+    "@types/ws": "^8.18.1",
+    "prisma": "^6.16.2"
   }
 }
