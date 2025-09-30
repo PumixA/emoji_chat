@@ -1,12 +1,15 @@
 <template>
   <div class="chat-container">
-    <div v-if="!username" class="auth">
-      <input v-model="tempUsername" @keyup.enter="setUsername" placeholder="Votre pseudo" />
-      <button @click="setUsername">Rejoindre</button>
+    <div v-if="!username" class="loading">
+      <p>Chargement de votre session…</p>
     </div>
 
     <div v-else class="chat-room">
-      <!-- Topbar: choix de la room (depuis main) -->
+      <div class="topbar user-bar">
+        <span>Connecté en tant que <strong>{{ username }}</strong></span>
+        <button class="btn ghost" @click="logout">Se déconnecter</button>
+      </div>
+
       <div class="topbar">
         <ClientOnly>
           <select name="room-select" id="room-select" v-model="roomInput" @change="changeRoom">
@@ -17,7 +20,6 @@
         </ClientOnly>
       </div>
 
-      <!-- Topbar: passphrase E2E (depuis features/chiffrement) -->
       <div class="topbar">
         <input
           v-model="passphraseInput"
@@ -63,33 +65,30 @@
 
 <script setup>
 import { ref, nextTick, onBeforeUnmount, onMounted } from 'vue'
+import { getAuthUser, clearAuthUser } from '~/utils/auth.client'
+
+const router = useRouter()
 
 const username = ref('')
-const tempUsername = ref('')
 
-// Rooms (depuis main)
 const roomInput = ref('Général')
 const currentRoom = ref('Général')
 const defaultRooms = ref([])
 
-// Messages / socket
 const messages = ref([])
 const newMessage = ref('')
 const socket = ref(null)
 const messagesContainer = ref(null)
 
-// Passphrase (depuis features/chiffrement)
 const STORAGE_KEY = 'emoji_chat_passphrase'
 const passphraseInput = ref('')
 const passphraseActive = ref(false)
 
-// ---- API Rooms (main)
 const getRooms = async () => {
   try {
     const response = await $fetch('/api/rooms')
     if (response.success) {
       defaultRooms.value = response.rooms
-      // Sélectionner "Général" par défaut si dispo
       const generalRoom = response.rooms.find(room => room.name === 'Général')
       if (generalRoom) {
         roomInput.value = generalRoom.name
@@ -103,15 +102,17 @@ const getRooms = async () => {
   }
 }
 
-// ---- Auth
-const setUsername = () => {
-  const name = (tempUsername.value || '').trim()
-  if (!name) return
-  username.value = name
+function loadUser() {
+  if (!process.client) return
+  const user = getAuthUser()
+  if (!user || !user.username) {
+    router.push('/login')
+    return
+  }
+  username.value = user.username
   connectWebSocket()
 }
 
-// ---- WebSocket
 const connectWebSocket = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
   const host = window.location.host
@@ -125,14 +126,12 @@ const connectWebSocket = () => {
     const data = JSON.parse(event.data)
 
     if (data.type === 'joined') {
-      // Sur confirmation, on peut mettre à jour la room si le serveur la renvoie
       if (data.room) currentRoom.value = data.room
-      messages.value = [] // reset à l'entrée d'une room (optionnel)
+      messages.value = []
       return
     }
 
     if (data.type === 'error') {
-      // Afficher l'erreur (room pleine, etc.)
       messages.value.push({
         type: 'system',
         content: `❌ ${data.message}`,
@@ -142,7 +141,6 @@ const connectWebSocket = () => {
       return
     }
 
-    // N'afficher que les messages de la room courante
     if (data.room && data.room !== currentRoom.value) return
 
     messages.value.push(data)
@@ -150,8 +148,6 @@ const connectWebSocket = () => {
   }
 
   socket.value.onclose = () => {
-    // (Optionnel) tentative de reconnexion simple
-    // setTimeout(connectWebSocket, 1000)
   }
 }
 
@@ -187,18 +183,31 @@ const scrollToBottom = () => {
   })
 }
 
+function applyPassphrase() {
+  const v = passphraseInput.value || ''
+  localStorage.setItem(STORAGE_KEY, v)
+  passphraseActive.value = !!v
+  window.dispatchEvent(new CustomEvent('e2e:passphrase-set', { detail: { pass: v } }))
+  console.log('[UI] Passphrase appliquée.')
+}
+
+function openModal() {
+  window.dispatchEvent(new CustomEvent('e2e:open-passphrase-modal'))
+}
+
+function logout() {
+  clearAuthUser()
+  router.push('/login')
+}
+
 onMounted(() => {
-  // Rooms (main)
+  loadUser()
   getRooms()
-  // Passphrase (features)
   try {
     const v = localStorage.getItem(STORAGE_KEY) || ''
     passphraseInput.value = v
     passphraseActive.value = !!v
-  } catch {
-    // rien
-  }
-  // sync cross-onglets & events app
+  } catch {}
   window.addEventListener('storage', (e) => {
     if (e.key === STORAGE_KEY) {
       const v = e.newValue || ''
@@ -220,25 +229,18 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (socket.value) socket.value.close()
 })
-
-// ---- Passphrase UI
-function applyPassphrase() {
-  const v = passphraseInput.value || ''
-  localStorage.setItem(STORAGE_KEY, v)
-  passphraseActive.value = !!v
-  window.dispatchEvent(new CustomEvent('e2e:passphrase-set', { detail: { pass: v } }))
-  console.log('[UI] Passphrase appliquée.')
-}
-
-function openModal() {
-  window.dispatchEvent(new CustomEvent('e2e:open-passphrase-modal'))
-}
 </script>
 
 <style scoped>
 .chat-container { max-width: 700px; margin: 0 auto; padding: 20px; }
 .auth, .input-area, .topbar { display: flex; gap: 10px; margin: 10px 0; }
 input { flex: 1; padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
+
+.loading { display: flex; justify-content: center; align-items: center; min-height: 300px; }
+.loading p { color: #555; }
+
+.user-bar { justify-content: space-between; align-items: center; }
+.user-bar span { font-weight: 500; color: #2d3748; }
 
 select {
   flex: 1;
@@ -318,7 +320,6 @@ h2 {
   margin-left: 8px;
 }
 
-/* Badge état passphrase */
 .badge { align-self: center; padding: 6px 10px; border-radius: 999px; font-size: 12px; line-height: 1; border: 1px solid #ddd; white-space: nowrap; }
 .badge.ok  { background: #e8f6ec; color: #0a7f3f; border-color: #bfe7cf; }
 .badge.nok { background: #fff3f0; color: #a73a1a; border-color: #ffd6cc; }
