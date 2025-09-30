@@ -7,4 +7,8 @@
 
 <script setup>
 import PassphraseModal from '~/components/PassphraseModal.vue'
+
+definePageMeta({
+  middleware: ['auth-client']
+})
 </script>
